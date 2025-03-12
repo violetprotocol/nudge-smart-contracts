@@ -148,7 +148,9 @@ contract NudgeCampaignAdminTest is Test {
     vm.prank(operator);
     campaign.invalidateParticipations(pIDsWithOne);
 
-    (IBaseNudgeCampaign.ParticipationStatus status1Before, , , uint256 rewardAmount1, , ) = campaign.participations(pID1);
+    (IBaseNudgeCampaign.ParticipationStatus status1Before, , , uint256 rewardAmount1, , ) = campaign.participations(
+      pID1
+    );
     assertEq(uint256(status1Before), uint256(IBaseNudgeCampaign.ParticipationStatus.INVALIDATED));
 
     // Check pending rewards are reduced
@@ -169,7 +171,7 @@ contract NudgeCampaignAdminTest is Test {
 
     assertEq(uint256(status1After), uint256(IBaseNudgeCampaign.ParticipationStatus.INVALIDATED));
     assertEq(uint256(status2), uint256(IBaseNudgeCampaign.ParticipationStatus.INVALIDATED));
-    
+
     // Check pending rewards were deducted correctly
     uint256 pendingRewardsAfterBothInvalidations = campaign.pendingRewards();
     assertEq(pendingRewardsAfterBothInvalidations, pendingRewardsAfterOneInvalidation - rewardAmount2);
@@ -311,6 +313,10 @@ contract NudgeCampaignAdminTest is Test {
     //////////////////////////////////////////////////////////////////////////*/
 
   function test_SetIsCampaignActive_Success() public {
+    // First verify that the campaign is active by default
+    assertTrue(campaign.isCampaignActive());
+
+    // Now set it to inactive
     vm.expectEmit(true, true, true, true);
     emit CampaignStatusChanged(false);
 
@@ -336,9 +342,28 @@ contract NudgeCampaignAdminTest is Test {
       INITIAL_FUNDING,
       2 // uuid
     );
-    vm.prank(nudgeAdmin);
+
+    // Campaign should be inactive initially
+    assertFalse(NudgeCampaign(payable(futureCampaign)).isCampaignActive());
+
+    // Try to allocate but it should fail
+    vm.startPrank(swapCaller);
+    targetToken.approve(address(futureCampaign), type(uint256).max);
+
     vm.expectRevert(INudgeCampaign.StartDateNotReached.selector);
-    NudgeCampaign(payable(futureCampaign)).setIsCampaignActive(true);
+    NudgeCampaign(payable(futureCampaign)).handleReallocation(2, alice, address(targetToken), 100e18, "");
+    vm.stopPrank();
+
+    // Fast forward to after the start time
+    vm.warp(block.timestamp + 1 days + 1);
+
+    // Now allocation should work and also activate the campaign
+    vm.startPrank(swapCaller);
+    NudgeCampaign(payable(futureCampaign)).handleReallocation(2, alice, address(targetToken), 100e18, "");
+    vm.stopPrank();
+
+    // Verify the campaign is now active
+    assertTrue(NudgeCampaign(payable(futureCampaign)).isCampaignActive());
   }
 
   function test_RevertSetIsCampaignActive_Unauthorized() public {

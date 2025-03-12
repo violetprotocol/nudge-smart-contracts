@@ -49,6 +49,8 @@ contract NudgeCampaign is INudgeCampaign, AccessControl {
   uint256 public totalReallocatedAmount;
   uint256 public accumulatedFees;
   uint256 public distributedRewards;
+  // Track whether campaign was manually deactivated
+  bool private _manuallyDeactivated;
 
   // Participations
   mapping(uint256 pID => Participation) public participations;
@@ -99,8 +101,12 @@ contract NudgeCampaign is INudgeCampaign, AccessControl {
 
     _grantRole(CAMPAIGN_ADMIN_ROLE, campaignAdmin);
 
-    isCampaignActive = startTimestamp_ == 0;
-    startTimestamp = isCampaignActive ? block.timestamp : startTimestamp_;
+    startTimestamp = startTimestamp_ == 0 ? block.timestamp : startTimestamp_;
+    // Campaign is active if start time is now or in the past
+    isCampaignActive = startTimestamp <= block.timestamp;
+
+    // Initialize as not manually deactivated
+    _manuallyDeactivated = false;
     rewardPPQ = rewardPPQ_;
     holdingPeriodInSeconds = holdingPeriodInSeconds_;
     feeBps = feeBps_;
@@ -162,9 +168,8 @@ contract NudgeCampaign is INudgeCampaign, AccessControl {
     uint256 toAmount,
     bytes memory data
   ) external payable whenNotPaused {
-    if (!isCampaignActive) {
-      revert InactiveCampaign();
-    }
+    // Check if campaign is active or can be activated
+    _validateAndActivateCampaignIfReady();
 
     if (!factory.hasRole(factory.SWAP_CALLER_ROLE(), msg.sender)) {
       revert UnauthorizedSwapCaller();
@@ -225,6 +230,24 @@ contract NudgeCampaign is INudgeCampaign, AccessControl {
     });
 
     emit NewParticipation(campaignId_, userAddress, pID, amountReceived, userRewards, fees, data);
+  }
+
+  /// @notice Checks if campaign is active or can be activated based on current timestamp
+  function _validateAndActivateCampaignIfReady() internal {
+    if (!isCampaignActive) {
+      // Only auto-activate if campaign has not been manually deactivated
+      // and if the start time has been reached
+      if (!_manuallyDeactivated && block.timestamp >= startTimestamp) {
+        // Automatically activate the campaign if start time reached
+        isCampaignActive = true;
+      } else if (block.timestamp < startTimestamp) {
+        // If start time not reached, explicitly revert
+        revert StartDateNotReached();
+      } else {
+        // If campaign was manually deactivated, revert with InactiveCampaign
+        revert InactiveCampaign();
+      }
+    }
   }
 
   /// @notice Claims rewards for multiple participations
@@ -337,6 +360,13 @@ contract NudgeCampaign is INudgeCampaign, AccessControl {
     }
 
     isCampaignActive = isActive;
+    // If deactivating, mark as manually deactivated
+    if (!isActive) {
+      _manuallyDeactivated = true;
+    } else {
+      // If activating, clear the manual deactivation flag
+      _manuallyDeactivated = false;
+    }
 
     emit CampaignStatusChanged(isActive);
   }
