@@ -365,8 +365,8 @@ contract NudgeCampaignFactoryTest is Test {
       assertEq(_rewardToken, address(rewardToken), "Reward token should match");
       assertEq(_rewardPPQ, type(uint256).max, "Reward PPQ should match");
       assertEq(_startTimestamp, type(uint256).max, "Start timestamp should match max value");
-      //campaign should not be active
-      assertFalse(isCampaignActive, "Campaign should not be active");
+      //campaign should not be active since start date is in the future
+      assertFalse(isCampaignActive, "Campaign should be inactive when start time is in the future");
       assertEq(pendingRewards, 0, "Pending rewards should be 0");
       assertEq(totalReallocatedAmount, 0, "Total reallocated amount should be 0");
       assertEq(distributedRewards, 0, "Distributed rewards should be 0");
@@ -447,8 +447,11 @@ contract NudgeCampaignFactoryTest is Test {
     assertEq(_rewardToken, address(rewardToken), "Reward token should match");
     assertEq(_rewardPPQ, REWARD_PPQ, "Reward PPQ should match");
     assertEq(_startTimestamp, startTimestamp, "Start timestamp should be equal to initial reward");
-    assertEq(isCampaignActive, startTimestamp == 0, "Campaign should be active"); // should be true only if
-    // startTimestamp is ==0
+    assertEq(
+      isCampaignActive,
+      startTimestamp <= block.timestamp,
+      "Campaign should be active only if start time is now or in the past"
+    );
     assertEq(pendingRewards, 0, "Pending rewards should be 0");
     assertEq(totalReallocatedAmount, 0, "Total reallocated amount should be 0");
     assertEq(distributedRewards, 0, "Distributed rewards should be 0");
@@ -523,8 +526,11 @@ contract NudgeCampaignFactoryTest is Test {
     assertEq(_rewardToken, factory.NATIVE_TOKEN(), "Reward token should match");
     assertEq(_rewardPPQ, REWARD_PPQ, "Reward BPS should match");
     assertEq(_startTimestamp, startTimestamp, "Start timestamp should be equal to initial reward");
-    assertEq(isCampaignActive, startTimestamp == 0, "Campaign should be active"); // should be true only if
-    // startTimestamp is ==0
+    assertEq(
+      isCampaignActive,
+      startTimestamp <= block.timestamp,
+      "Campaign should be active only if start time is now or in the past"
+    );
     assertEq(pendingRewards, 0, "Pending rewards should be 0");
     assertEq(totalReallocatedAmount, 0, "Total reallocated amount sould be 0");
     assertEq(distributedRewards, 0, "Distributed rewards should be 0");

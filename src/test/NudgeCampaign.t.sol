@@ -249,20 +249,50 @@ contract NudgeCampaignTest is Test {
   function test_ConststructorWithFutureStartDate() public {
     uint256 startTimestamp_ = block.timestamp + 10 days;
 
-    NudgeCampaign campaign_ = new NudgeCampaign(
+    // Fund test contract with reward tokens for deployment
+    rewardToken.mintTo(INITIAL_FUNDING, address(this));
+    rewardToken.approve(address(factory), INITIAL_FUNDING);
+
+    // Deploy and fund campaign with future start date
+    address futureCampaignAddress = factory.deployAndFundCampaign(
       holdingPeriodInSeconds,
       address(toToken),
       address(rewardToken),
       REWARD_PPQ,
       campaignAdmin,
       startTimestamp_,
-      DEFAULT_FEE_BPS,
       alternativeWithdrawalAddress,
+      INITIAL_FUNDING,
       RANDOM_UUID
     );
 
-    assertEq(campaign_.startTimestamp(), startTimestamp_);
-    assertFalse(campaign_.isCampaignActive());
+    NudgeCampaign futureCampaign = NudgeCampaign(payable(futureCampaignAddress));
+
+    assertEq(futureCampaign.startTimestamp(), startTimestamp_);
+    assertFalse(futureCampaign.isCampaignActive());
+
+    // Trying to call handleReallocation should fail before the start timestamp
+    vm.startPrank(swapCaller);
+    vm.expectRevert(INudgeCampaign.StartDateNotReached.selector);
+    futureCampaign.handleReallocation(RANDOM_UUID, alice, address(toToken), 100e18, "");
+    vm.stopPrank();
+
+    // Warp to after the start timestamp
+    vm.warp(startTimestamp_ + 1);
+
+    // Now handleReallocation should work and campaign should be automatically activated
+    uint256 amount = 100e18;
+    vm.prank(swapCaller);
+    toToken.faucet(amount);
+
+    vm.prank(swapCaller);
+    toToken.approve(futureCampaignAddress, amount);
+
+    vm.prank(swapCaller);
+    futureCampaign.handleReallocation(RANDOM_UUID, alice, address(toToken), amount, "");
+
+    // Verify campaign is now active
+    assertTrue(futureCampaign.isCampaignActive());
   }
 
   function test_ConstructorAlternativeWithdrawalAddressCanBeZeroAddress() public {
@@ -318,6 +348,11 @@ contract NudgeCampaignTest is Test {
     // Verify campaign was created with correct timestamp
     assertEq(deployedCampaign.startTimestamp(), futureTimestamp);
     assertFalse(deployedCampaign.isCampaignActive());
+
+    // But it should still enforce the start timestamp when calling handleReallocation
+    vm.prank(swapCaller);
+    vm.expectRevert(INudgeCampaign.StartDateNotReached.selector);
+    deployedCampaign.handleReallocation(RANDOM_UUID, alice, address(toToken), 100e18, "");
   }
 
   /*//////////////////////////////////////////////////////////////////////////
