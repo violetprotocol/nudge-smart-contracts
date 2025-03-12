@@ -359,6 +359,89 @@ contract NudgeCampaignAdminTest is Test {
   }
 
   /*//////////////////////////////////////////////////////////////////////////
+                              RESCUE TOKENS                              
+  //////////////////////////////////////////////////////////////////////////*/
+
+  function test_RescueTokens_Success() public {
+    // Create a new token to rescue (not the reward token)
+    TestERC20 randomToken = new TestERC20("Random Token", "RT");
+    uint256 amountToRescue = 1000e18;
+
+    // Send tokens to the campaign contract
+    randomToken.mintTo(amountToRescue, address(campaign));
+
+    // Initial admin balance
+    uint256 adminBalanceBefore = randomToken.balanceOf(nudgeAdmin);
+
+    // Expect event emission
+    vm.expectEmit(true, true, true, true);
+    emit INudgeCampaign.TokensRescued(address(randomToken), amountToRescue);
+
+    // Call rescueTokens as Nudge admin
+    vm.prank(nudgeAdmin);
+    uint256 rescuedAmount = campaign.rescueTokens(address(randomToken));
+
+    // Verify the amounts - tokens are sent to caller
+    assertEq(rescuedAmount, amountToRescue);
+    assertEq(randomToken.balanceOf(nudgeAdmin), adminBalanceBefore + amountToRescue);
+    assertEq(randomToken.balanceOf(address(campaign)), 0);
+  }
+
+  function test_RescueNativeTokens() public {
+    // Send ETH to the campaign
+    uint256 amountToRescue = 2 ether;
+    vm.deal(address(campaign), amountToRescue);
+
+    // Get admin ETH balance before
+    uint256 adminBalanceBefore = address(nudgeAdmin).balance;
+
+    // Call rescueTokens as Nudge admin
+    vm.startPrank(nudgeAdmin);
+    address nativeToken = campaign.NATIVE_TOKEN();
+    uint256 rescuedAmount = campaign.rescueTokens(nativeToken);
+    vm.stopPrank();
+
+    // Verify ETH was rescued to the admin
+    assertEq(rescuedAmount, amountToRescue);
+    assertEq(address(nudgeAdmin).balance, adminBalanceBefore + amountToRescue);
+    assertEq(address(campaign).balance, 0);
+  }
+
+  function test_RevertRescueTokens_RewardToken() public {
+    // Try to rescue reward token
+    vm.prank(nudgeAdmin);
+    vm.expectRevert(INudgeCampaign.CannotRescueRewardToken.selector);
+    campaign.rescueTokens(address(rewardToken));
+  }
+
+  function test_RevertRescueTokens_Unauthorized() public {
+    // Create a new token to rescue
+    TestERC20 randomToken = new TestERC20("Random Token 3", "RT3");
+
+    // Try to call rescueTokens as non-admin
+    vm.prank(alice);
+    vm.expectRevert(IBaseNudgeCampaign.Unauthorized.selector);
+    campaign.rescueTokens(address(randomToken));
+  }
+
+  function test_RescueTargetToken() public {
+    // Send target tokens directly to the campaign
+    uint256 amountToRescue = 500e18;
+    targetToken.mintTo(amountToRescue, address(campaign));
+
+    // Target token should be allowed to be rescued since it's not the reward token
+    uint256 adminBalanceBefore = targetToken.balanceOf(nudgeAdmin);
+
+    vm.prank(nudgeAdmin);
+    uint256 rescuedAmount = campaign.rescueTokens(address(targetToken));
+
+    // Verify the target token was rescued to the admin
+    assertEq(rescuedAmount, amountToRescue);
+    assertEq(targetToken.balanceOf(nudgeAdmin), adminBalanceBefore + amountToRescue);
+    assertEq(targetToken.balanceOf(address(campaign)), 0);
+  }
+
+  /*//////////////////////////////////////////////////////////////////////////
                            INTERACTION SCENARIOS                              
     //////////////////////////////////////////////////////////////////////////*/
 

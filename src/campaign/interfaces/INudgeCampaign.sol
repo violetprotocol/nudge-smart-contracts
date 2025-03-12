@@ -16,6 +16,7 @@ interface INudgeCampaign is IBaseNudgeCampaign {
   error NativeTokenTransferFailed();
   error EmptyParticipationsArray();
   error InvalidCampaignId();
+  error CannotRescueRewardToken();
 
   // Events
   event ParticipationInvalidated(uint256[] pIDs);
@@ -23,12 +24,14 @@ interface INudgeCampaign is IBaseNudgeCampaign {
   event FeesCollected(uint256 amount);
   event CampaignStatusChanged(bool isActive);
   event NudgeRewardClaimed(uint256 pID, address userAddress, uint256 rewardAmount);
+  event TokensRescued(address token, uint256 amount);
 
   function collectFees() external returns (uint256);
   function invalidateParticipations(uint256[] calldata pIDs) external;
   function withdrawRewards(uint256 amount) external;
   function setIsCampaignActive(bool isActive) external;
   function claimRewards(uint256[] calldata pIDs) external;
+  function rescueTokens(address token) external returns (uint256);
 
   // View functions
   function getBalanceOfSelf(address token) external view returns (uint256);

@@ -341,6 +341,28 @@ contract NudgeCampaign is INudgeCampaign, AccessControl {
     emit CampaignStatusChanged(isActive);
   }
 
+  /// @notice Rescues tokens that were mistakenly sent to the contract
+  /// @param token Address of token to rescue
+  /// @dev Only callable by NUDGE_ADMIN_ROLE, can't rescue the reward token
+  /// @return amount Amount of tokens rescued
+  function rescueTokens(address token) external returns (uint256 amount) {
+    if (!factory.hasRole(factory.NUDGE_ADMIN_ROLE(), msg.sender)) {
+      revert Unauthorized();
+    }
+
+    if (token == rewardToken) {
+      revert CannotRescueRewardToken();
+    }
+
+    amount = getBalanceOfSelf(token);
+    if (amount > 0) {
+      _transfer(token, msg.sender, amount);
+      emit TokensRescued(token, amount);
+    }
+
+    return amount;
+  }
+
   /*//////////////////////////////////////////////////////////////////////////
                               VIEW FUNCTIONS                              
   //////////////////////////////////////////////////////////////////////////*/
