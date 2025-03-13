@@ -973,6 +973,7 @@ contract NudgeCampaignTest is Test {
   }
 
   function test_RewardCalculationWithVariousDecimals() public {
+    vm.pauseGasMetering();
     // Test cases with different decimal combinations
     TestCase[] memory testCases = new TestCase[](19 * 19); // All combinations from 0 to 18
     uint256 testIndex = 0;
@@ -1037,6 +1038,7 @@ contract NudgeCampaignTest is Test {
   }
 
   function testFuzz_RewardCalculationWithVariousDecimalsAndAmounts(uint256 toAmount) public {
+    vm.pauseGasMetering();
     // Bound toAmount to reasonable values (up to 1 billion tokens)
     toAmount = bound(toAmount, 1, 1_000_000_000 * 1e18);
 
